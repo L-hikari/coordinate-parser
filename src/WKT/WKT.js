@@ -55,9 +55,26 @@ function fromJson(obj) {
                 }
 
                 if (coords.length > 1) {
-                    components.push(oring);
+                    if (obj.type === 'multilinestring') {
+                        components.push({
+                            type: 'linestring',
+                            coordinates: oring
+                        });
+                    } else {
+                        components.push(oring);
+                    }
                 } else if (coords[i].length > 1) {
-                    components = components.concat(oring);
+                    if (obj.type === 'multilinestring') {
+                        return {
+                            type: 'linestring',
+                            coordinates: components
+                        };
+                    } else {
+                        return {
+                            type: 'polygon',
+                            coordinates: components
+                        };
+                    }
                 }
             }
         }
@@ -227,6 +244,69 @@ const ingest = {
     },
 }; // eo ingest
 
+const parser = {
+    /**
+     * point
+     * @param {Array} coordinates 
+     * @returns 
+     */
+    point(coordinates) {
+        return {
+            type: 'Point',
+            coordinates
+        };
+    },
+    /**
+     * multipoint
+     * @param {Array} coordinates 
+     * @returns 
+     */
+    multipoint(coordinates) {
+        return {
+            type: 'MultiPoint',
+            children: coordinates.map(item => this.point(item))
+        }
+    },
+    /**
+     * linestring
+     * @param {Array} coordinates 
+     */
+    linestring(coordinates) {
+        return {
+            type: 'LineString',
+            coordinates
+        }
+    },
+    /**
+     * multilinestring
+     * @param {Array} coordinates 
+     */
+    multilinestring(coordinates) {
+        return {
+            type: 'MultiLineString',
+            children: coordinates.map(item => this.linestring(item))
+        }
+    },
+    /**
+     * 
+     * @param {Array} coordinates 
+     */
+    polygon(coordinates) {
+        if (coordinates.length > 1) {
+            return {
+                type: 'Polygon',
+                isHole: true,
+                coordinates
+            }
+        }
+        return {
+            type: 'Polygon',
+            isHole: false,
+            coordinates: coordinates[0]
+        }
+    }
+}
+
 /**
  * @classdesc
  * Geometry format for reading and writing data in the `WellKnownText` (WKT)
@@ -316,28 +396,30 @@ class WKT {
 
 
         if (this.type === 'point') {
-            return components[0];
+            return {
+                type: this.type,
+                coordinates: components[0]
+            };
         }
+        console.log(components);
 
-        let coordinates = fromJson({
-            type: this.type,
-            coordinates: components,
-        });
-        return coordinates;
-    }
+        return parser[this.type](components);
+        // let coordinates = fromJson({
+        //     type: this.type,
+        //     coordinates: components
+        // });
 
-    isCollection() {
-        switch (this.type.slice(0, 5)) {
-            case 'multi':
-                // Trivial; any multi-geometry is a collection
-                return true;
-            case 'polyg':
-                // Polygons with holes are "collections" of rings
-                return true;
-            default:
-                // Any other geometry is not a collection
-                return false;
-        }
+        // if (this.type.slice(0, 5) === 'multi') {
+        //     return {
+        //         type: this.type,
+        //         children: coordinates
+        //     }
+        // }
+
+        // return {
+        //     type: this.type,
+        //     coordinates
+        // };
     }
 }
 
