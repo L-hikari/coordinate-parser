@@ -1,86 +1,9 @@
+import { calculateHole } from '../tools/extent';
+
 function stripWhitespaceAndParens_(fullStr) {
     var trimmed = fullStr.trim();
     var noParens = trimmed.replace(/^\(?(.*?)\)?$/, '$1');
     return noParens;
-}
-
-function fromJson(obj) {
-    var i, j, k, coords, iring, oring;
-
-    // this.type = obj.type.toLowerCase();
-    let components = [];
-    if (obj.hasOwnProperty('geometry')) {
-        //Feature
-        fromJson(obj.geometry);
-        return this;
-    }
-    coords = obj.coordinates;
-
-    for (i in coords) {
-        if (coords.hasOwnProperty(i)) {
-            if (!Wkt.isArray(coords[i][0])) {
-                // LineString
-                components.push(coords[i]);
-            } else {
-                oring = [];
-                for (j in coords[i]) {
-                    if (coords[i].hasOwnProperty(j)) {
-                        // Polygon
-                        if (!Wkt.isArray(coords[i][j][0])) {
-                            if (coords.length > 1) {
-                                oring.push(coords[i][j]);
-                            } else {
-                                components.push(coords[i][j]);
-                            }
-                        } else {
-                            // MultiPolygon
-                            iring = [];
-                            for (k in coords[i][j]) {
-                                if (coords[i][j].hasOwnProperty(k)) {
-                                    if (coords.length > 1) {
-                                        iring.push(coords[i][j][k]);
-                                    } else {
-                                        if (coords[i].length > 1) {
-                                            iring.push(coords[i][j][k]);
-                                        } else {
-                                            components.push(coords[i][j][k]);
-                                        }
-                                    }
-                                }
-                            }
-
-                            coords[i].length > 1 ? oring.push(iring) : (oring = oring.concat(iring));
-                        }
-                    }
-                }
-
-                if (coords.length > 1) {
-                    if (obj.type === 'multilinestring') {
-                        components.push({
-                            type: 'linestring',
-                            coordinates: oring
-                        });
-                    } else {
-                        components.push(oring);
-                    }
-                } else if (coords[i].length > 1) {
-                    if (obj.type === 'multilinestring') {
-                        return {
-                            type: 'linestring',
-                            coordinates: components
-                        };
-                    } else {
-                        return {
-                            type: 'polygon',
-                            coordinates: components
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    return components;
 }
 
 const regExes = {
@@ -296,13 +219,19 @@ const parser = {
             return {
                 type: 'Polygon',
                 isHole: true,
-                coordinates
+                coordinates: calculateHole(coordinates)
             }
         }
         return {
             type: 'Polygon',
             isHole: false,
             coordinates: coordinates[0]
+        }
+    },
+    multipolygon(coordinates) {
+        return {
+            type: 'MultiPolygon',
+            children: coordinates.map(item => this.polygon(item))
         }
     }
 }
@@ -401,25 +330,8 @@ class WKT {
                 coordinates: components[0]
             };
         }
-        console.log(components);
 
         return parser[this.type](components);
-        // let coordinates = fromJson({
-        //     type: this.type,
-        //     coordinates: components
-        // });
-
-        // if (this.type.slice(0, 5) === 'multi') {
-        //     return {
-        //         type: this.type,
-        //         children: coordinates
-        //     }
-        // }
-
-        // return {
-        //     type: this.type,
-        //     coordinates
-        // };
     }
 }
 
